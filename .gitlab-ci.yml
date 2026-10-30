@@ -1,0 +1,56 @@
+stages: [install, lint, test, sonar]
+
+variables:
+  NODE_ENV: test
+  NPM_CACHE_FOLDER: '$CI_PROJECT_DIR/.npm'
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .npm/
+
+install:
+  image: node:20-alpine
+  stage: install
+  script:
+    - npm ci
+  artifacts:
+    paths:
+      - node_modules/
+    expire_in: 1h
+
+lint:
+  image: node:20-alpine
+  stage: lint
+  needs: ['install']
+  script:
+    - npm run lint
+    - npm run format
+  allow_failure: false
+
+test:
+  image: node:20-alpine
+  stage: test
+  needs: ['install']
+  script:
+    - npm run test:cov
+  artifacts:
+    paths:
+      - coverage/
+    when: always
+    expire_in: 1 day
+
+sonar:
+  image: sonarsource/sonar-scanner-cli:latest
+  stage: sonar
+  needs: ['test']
+  variables:
+    SONAR_HOST_URL: $SONAR_HOST_URL
+    SONAR_TOKEN: $SONAR_TOKEN
+  script:
+    - sonar-scanner
+      -Dsonar.projectKey=node-quality-tp
+      -Dsonar.sources=src
+      -Dsonar.tests=tests
+      -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+      -Dsonar.qualitygate.wait=true
